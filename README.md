@@ -77,43 +77,83 @@ data is consistent across the entire cluster
 
 
 ### Running Locally
+##### Terminal 1 - node 1 (bootstrap leader):
 ```
-# terminal 1 — node-1 (bootstraps the cluster)
-NODE_ID=node-1 NODE_ADDRESS=:50051 RAFT_ADDRESS=localhost:50061 \
-PEERS=node-1=:50051,node-2=:50052,node-3=:50053 \
-BOOTSTRAP=true go run cmd/server/main.go
+CLEAN=true NODE_ID=node-1 NODE_ADDRESS=:50051 \
+RAFT_ADDRESS=localhost:50061 METRICS_ADDRESS=:9090 \
+BOOTSTRAP=true PEERS=node-1=:50051,node-2=:50052,node-3=:50053 \
+go run cmd/server/main.go
+```
 
-# terminal 2 — node-2
-NODE_ID=node-2 NODE_ADDRESS=:50052 RAFT_ADDRESS=localhost:50062 \
+##### Terminal 2 - node 2:
+```
+CLEAN=true NODE_ID=node-2 NODE_ADDRESS=:50052 \
+RAFT_ADDRESS=localhost:50062 METRICS_ADDRESS=:9091 \
 PEERS=node-1=:50051,node-2=:50052,node-3=:50053 \
 go run cmd/server/main.go
+```
 
-# terminal 3 — node-3
-NODE_ID=node-3 NODE_ADDRESS=:50053 RAFT_ADDRESS=localhost:50063 \
+##### Terminal 3 - node 3:
+```
+CLEAN=true NODE_ID=node-3 NODE_ADDRESS=:50053 \
+RAFT_ADDRESS=localhost:50063 METRICS_ADDRESS=:9092 \
 PEERS=node-1=:50051,node-2=:50052,node-3=:50053 \
 go run cmd/server/main.go
+```
 
-# terminal 4 — join nodes to the cluster
-grpcurl -plaintext -d '{"node_id":"node-2","address":"localhost:50062"}' \
+##### Terminal 4 - Join nodes:
+```
+grpcurl -plaintext \
+  -d '{"node_id":"node-2","address":"localhost:50062"}' \
   localhost:50051 cache.CacheService/Join
 
-grpcurl -plaintext -d '{"node_id":"node-3","address":"localhost:50063"}' \
+grpcurl -plaintext \
+  -d '{"node_id":"node-3","address":"localhost:50063"}' \
   localhost:50051 cache.CacheService/Join
 ```
 
-Test it:
-```
-# put a value
-grpcurl -plaintext -d '{"key":"name","value":"alice"}' \
-  localhost:50051 cache.CacheService/Put
 
-# get from any node — all return the same value
+### API Reference
+###### Put
+```
+grpcurl -plaintext -d '{"key":"name","value":"alice"}' localhost:50051 cache.CacheService/Put
+```
+
+###### Put with TTL
+```
+grpcurl -plaintext -d '{"key":"session","value":"xyz","ttl_seconds":300}' localhost:50051 cache.CacheService/Put
+```
+
+###### Get
+```
 grpcurl -plaintext -d '{"key":"name"}' localhost:50051 cache.CacheService/Get
-grpcurl -plaintext -d '{"key":"name"}' localhost:50052 cache.CacheService/Get
-grpcurl -plaintext -d '{"key":"name"}' localhost:50053 cache.CacheService/Get
+```
 
-# check size on each node
+###### Remove
+```
+grpcurl -plaintext -d '{"key":"name"}' localhost:50051 cache.CacheService/Remove
+```
+
+###### Size
+```
 grpcurl -plaintext -d '{}' localhost:50051 cache.CacheService/Size
-grpcurl -plaintext -d '{}' localhost:50052 cache.CacheService/Size
-grpcurl -plaintext -d '{}' localhost:50053 cache.CacheService/Size
+```
+
+###### Clear
+
+```
+grpcurl -plaintext -d '{}' localhost:50051 cache.CacheService/Clear
+```
+
+##### TTL Expiry Test
+Keys are automatically deleted after their TTL expires. Put a key with 5-second TTL, read it immediately (found), wait 6 seconds, read again (gone).
+![ttl.png](ttl.png)
+
+##### Server Logs
+Node startup, leader election, and FSM apply events logged as structured JSON via Uber Zap.
+![serverlogs.png](serverlogs.png)
+
+##### Metrics
+```
+curl localhost:9090/metrics | grep cache
 ```
