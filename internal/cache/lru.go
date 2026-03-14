@@ -141,3 +141,14 @@ func (cache *LRUCache[K, V]) moveToHead(node *Entry[K, V]) {
 	cache.removeNode(node)
 	cache.addToHead(node)
 }
+
+func (cache *LRUCache[K, V]) Items() map[K]V {
+	cache.mu.Lock()
+	defer cache.mu.Unlock()
+
+	result := make(map[K]V, len(cache.items))
+	for k, v := range cache.items {
+		result[k] = v.value
+	}
+	return result
+}

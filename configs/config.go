@@ -6,13 +6,12 @@ import (
 )
 
 type Config struct {
-	NodeID string
-
-	NodeAddress string
-
-	Peers []PeerConfig
-
+	NodeID        string
+	NodeAddress   string
+	RaftAddress   string
+	Peers         []PeerConfig
 	CacheCapacity uint64
+	Bootstrap     bool
 }
 
 type PeerConfig struct {
@@ -24,8 +23,10 @@ func Load() *Config {
 	return &Config{
 		NodeID:        getEnv("NODE_ID", "node-1"),
 		NodeAddress:   getEnv("NODE_ADDRESS", ":50051"),
+		RaftAddress:   getEnv("RAFT_ADDRESS", ":50061"),
 		Peers:         parsePeers(getEnv("PEERS", "")),
 		CacheCapacity: 1000,
+		Bootstrap:     getEnv("BOOTSTRAP", "false") == "true",
 	}
 }
 

@@ -34,7 +34,6 @@ func (p *Pool) Add(nodeID, address string) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	// already connected, skip
 	if _, exists := p.clients[nodeID]; exists {
 		return nil
 	}
@@ -136,4 +135,24 @@ func (p *Pool) getClient(nodeID string) (*Client, error) {
 		return nil, fmt.Errorf("no connection to node %s", nodeID)
 	}
 	return c, nil
+}
+
+func (p *Pool) GetByAddress(address string) (pb.CacheServiceClient, error) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	for _, c := range p.clients {
+		if c.address == address {
+			return c.cache, nil
+		}
+	}
+
+	conn, err := grpc.NewClient(
+		address,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to leader at %s: %w", address, err)
+	}
+	return pb.NewCacheServiceClient(conn), nil
 }
