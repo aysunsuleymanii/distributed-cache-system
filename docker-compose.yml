@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  node-1:
+    build: .
+    environment:
+      - NODE_ID=node-1
+      - NODE_ADDRESS=:50051
+      - RAFT_ADDRESS=node-1:50061
+      - METRICS_ADDRESS=:9090
+      - PEERS=node-1=:50051,node-2=:50052,node-3=:50053
+      - BOOTSTRAP=true
+    ports:
+      - "50051:50051"
+      - "9091:9090"
+
+  node-2:
+    build: .
+    environment:
+      - NODE_ID=node-2
+      - NODE_ADDRESS=:50051
+      - RAFT_ADDRESS=node-2:50061
+      - METRICS_ADDRESS=:9090
+      - PEERS=node-1=:50051,node-2=:50052,node-3=:50053
+    ports:
+      - "50052:50051"
+      - "9092:9090"
+
+  node-3:
+    build: .
+    environment:
+      - NODE_ID=node-3
+      - NODE_ADDRESS=:50051
+      - RAFT_ADDRESS=node-3:50061
+      - METRICS_ADDRESS=:9090
+      - PEERS=node-1=:50051,node-2=:50052,node-3=:50053
+    ports:
+      - "50053:50051"
+      - "9093:9090"
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./configs/prometheus.yml.yml:/etc/prometheus.yml/prometheus.yml.yml
+    ports:
+      - "9095:9090"
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin

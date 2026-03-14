@@ -5,13 +5,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"time"
 
 	"distributed-cache-system/internal/cache"
 	"distributed-cache-system/internal/client"
 	"distributed-cache-system/internal/fsm"
+	"distributed-cache-system/internal/metrics"
 	raftnode "distributed-cache-system/internal/raft"
 	"distributed-cache-system/internal/ring"
 	pb "distributed-cache-system/proto"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -22,7 +25,7 @@ type CacheServer struct {
 	lru      *cache.LRUCache[string, string]
 	ring     *ring.Ring
 	pool     *client.Pool
-	raftNode *raftnode.Node // added
+	raftNode *raftnode.Node
 }
 
 func New(
@@ -63,7 +66,11 @@ func (s *CacheServer) applyCommand(cmd fsm.Command) error {
 
 	switch cmd.Type {
 	case fsm.CommandPut:
-		_, err = leaderClient.Put(ctx, &pb.PutRequest{Key: cmd.Key, Value: cmd.Value})
+		_, err = leaderClient.Put(ctx, &pb.PutRequest{
+			Key:        cmd.Key,
+			Value:      cmd.Value,
+			TtlSeconds: cmd.TTLSeconds,
+		})
 	case fsm.CommandRemove:
 		_, err = leaderClient.Remove(ctx, &pb.RemoveRequest{Key: cmd.Key})
 	case fsm.CommandClear:
@@ -73,28 +80,40 @@ func (s *CacheServer) applyCommand(cmd fsm.Command) error {
 }
 
 func (s *CacheServer) Get(ctx context.Context, req *pb.GetRequest) (*pb.GetResponse, error) {
-	owner := s.ring.GetNode(req.Key)
-	if owner != s.nodeID {
-		value, found, err := s.pool.Get(owner, req.Key)
-		if err != nil {
-			return nil, err
-		}
-		return &pb.GetResponse{Value: value, Found: found}, nil
-	}
+	start := time.Now()
+	defer func() {
+		metrics.RequestDuration.WithLabelValues("Get").Observe(time.Since(start).Seconds())
+	}()
 
+	// Raft replicates all data to every node — read locally, no routing needed
 	value, found := s.lru.Get(req.Key)
+	if found {
+		metrics.CacheHits.Inc()
+	} else {
+		metrics.CacheMisses.Inc()
+	}
+	metrics.CacheSize.Set(float64(s.lru.Size()))
 	return &pb.GetResponse{Value: value, Found: found}, nil
 }
 
 func (s *CacheServer) Put(ctx context.Context, req *pb.PutRequest) (*pb.PutResponse, error) {
+	fmt.Printf("SERVER Put: key=%s value=%s ttl=%d isLeader=%v\n",
+		req.Key, req.Value, req.TtlSeconds, s.raftNode.IsLeader())
+	start := time.Now()
+	defer func() {
+		metrics.RequestDuration.WithLabelValues("Put").Observe(time.Since(start).Seconds())
+	}()
+
 	err := s.applyCommand(fsm.Command{
-		Type:  fsm.CommandPut,
-		Key:   req.Key,
-		Value: req.Value,
+		Type:       fsm.CommandPut,
+		Key:        req.Key,
+		Value:      req.Value,
+		TTLSeconds: req.TtlSeconds,
 	})
 	if err != nil {
 		return nil, err
 	}
+	metrics.CacheSize.Set(float64(s.lru.Size()))
 	return &pb.PutResponse{}, nil
 }
 

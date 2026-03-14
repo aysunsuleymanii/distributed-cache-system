@@ -25,6 +25,7 @@ message GetResponse {
 message PutRequest {
   string key = 1;
   string value = 2;
+  int64 ttl_seconds = 3;
 }
 
 message PutResponse {}

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"time"
 
 	"distributed-cache-system/internal/cache"
 
@@ -19,9 +20,10 @@ const (
 )
 
 type Command struct {
-	Type  CommandType `json:"type"`
-	Key   string      `json:"key"`
-	Value string      `json:"value"`
+	Type       CommandType `json:"type"`
+	Key        string      `json:"key"`
+	Value      string      `json:"value"`
+	TTLSeconds int64       `json:"ttl_seconds"`
 }
 
 type CacheFSM struct {
@@ -40,7 +42,12 @@ func (f *CacheFSM) Apply(log *raft.Log) interface{} {
 
 	switch cmd.Type {
 	case CommandPut:
-		f.cache.Put(cmd.Key, cmd.Value)
+		if cmd.TTLSeconds > 0 {
+			ttl := time.Duration(cmd.TTLSeconds) * time.Second
+			f.cache.PutWithTTL(cmd.Key, cmd.Value, ttl)
+		} else {
+			f.cache.Put(cmd.Key, cmd.Value)
+		}
 	case CommandRemove:
 		f.cache.Remove(cmd.Key)
 	case CommandClear:
