@@ -2,7 +2,7 @@
 - /cmd -> things we run
 - /internal -> things we build
 ## LRU Cache Design
-###### Image
+![cache-diagram.png](cache-diagram.png)
 The cache provides O(1) access since it uses a 
 map from key K to a DLL node (Entry)
 which is a (Key,Value) pair and pointers to previous and next element.
