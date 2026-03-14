@@ -26,16 +26,32 @@ func (cache *LRUCache[K, V]) Get(key K) (value V, exists bool) {
 	if !exists {
 		return value, false
 	}
+
+	cache.moveToHead(entry)
 	return entry.value, true
 }
-
 func (cache *LRUCache[K, V]) Put(key K, value V) {
+
+	// key already exists
+	if entry, exists := cache.items[key]; exists {
+		entry.value = value
+		cache.moveToHead(entry)
+		return
+	}
+
+	// create new entry
 	entry := &Entry[K, V]{
 		key:   key,
 		value: value,
 	}
 
 	cache.items[key] = entry
+	cache.addToHead(entry)
+
+	// check capacity
+	if uint64(len(cache.items)) > cache.capacity {
+		cache.removeTail()
+	}
 }
 
 func (cache *LRUCache[K, V]) Remove(key K) (value V, successful bool) {
@@ -44,10 +60,10 @@ func (cache *LRUCache[K, V]) Remove(key K) (value V, successful bool) {
 		return value, false
 	}
 
-	value = entry.value
+	cache.removeNode(entry)
 	delete(cache.items, key)
 
-	return value, true
+	return entry.value, true
 }
 
 func (cache *LRUCache[K, V]) Size() int {
@@ -58,4 +74,56 @@ func (cache *LRUCache[K, V]) Clear() {
 	cache.head = nil
 	cache.tail = nil
 	cache.items = make(map[K]*Entry[K, V])
+}
+
+func (cache *LRUCache[K, V]) addToHead(node *Entry[K, V]) {
+	firstNode := cache.head
+
+	node.prev = nil
+	node.next = firstNode
+
+	if firstNode != nil {
+		firstNode.prev = node
+	}
+
+	cache.head = node
+
+	if cache.tail == nil {
+		cache.tail = node
+	}
+}
+
+func (cache *LRUCache[K, V]) removeNode(node *Entry[K, V]) {
+
+	if node.prev != nil {
+		node.prev.next = node.next
+	} else {
+		cache.head = node.next
+	}
+
+	if node.next != nil {
+		node.next.prev = node.prev
+	} else {
+		cache.tail = node.prev
+	}
+
+	node.prev = nil
+	node.next = nil
+}
+
+func (cache *LRUCache[K, V]) removeTail() *Entry[K, V] {
+	node := cache.tail
+	if node == nil {
+		return nil
+	}
+
+	cache.removeNode(node)
+	delete(cache.items, node.key)
+
+	return node
+}
+
+func (cache *LRUCache[K, V]) moveToHead(node *Entry[K, V]) {
+	cache.removeNode(node)
+	cache.addToHead(node)
 }

@@ -5,20 +5,17 @@ import "testing"
 func TestLRU(t *testing.T) {
 
 	t.Run("Retrieve a value by key", func(t *testing.T) {
-		cache := LRUCache[string, int]{
-			capacity: 3,
-			items: map[string]*Entry[string, int]{
-				"Alice":   {key: "Alice", value: 23},
-				"Bob":     {key: "Bob", value: 22},
-				"Charlie": {key: "Charlie", value: 20},
-			},
-		}
+		cache := NewLRUCache[string, int](3)
+
+		cache.Put("Alice", 23)
+		cache.Put("Bob", 22)
+		cache.Put("Charlie", 20)
 
 		expected := 23
 		got, ok := cache.Get("Alice")
 
 		if !ok {
-			t.Fatalf("expected key does not exist")
+			t.Fatalf("expected key to exist")
 		}
 
 		if expected != got {
@@ -27,13 +24,10 @@ func TestLRU(t *testing.T) {
 	})
 
 	t.Run("Insert or update a value", func(t *testing.T) {
-		cache := LRUCache[int, string]{
-			capacity: 2,
-			items: map[int]*Entry[int, string]{
-				123: {key: 123, value: "Alice"},
-				456: {key: 456, value: "Bob"},
-			},
-		}
+		cache := NewLRUCache[int, string](3)
+
+		cache.Put(123, "Alice")
+		cache.Put(456, "Bob")
 
 		key := 555
 		value := "Charlie"
@@ -52,13 +46,10 @@ func TestLRU(t *testing.T) {
 	})
 
 	t.Run("Remove a key manually", func(t *testing.T) {
-		cache := LRUCache[int, string]{
-			capacity: 2,
-			items: map[int]*Entry[int, string]{
-				123: {key: 123, value: "Alice"},
-				456: {key: 456, value: "Bob"},
-			},
-		}
+		cache := NewLRUCache[int, string](3)
+
+		cache.Put(123, "Alice")
+		cache.Put(456, "Bob")
 
 		key := 123
 		expected := "Alice"
@@ -75,13 +66,10 @@ func TestLRU(t *testing.T) {
 	})
 
 	t.Run("Return number of elements", func(t *testing.T) {
-		cache := LRUCache[int, string]{
-			capacity: 2,
-			items: map[int]*Entry[int, string]{
-				123: {key: 123, value: "Alice"},
-				456: {key: 456, value: "Bob"},
-			},
-		}
+		cache := NewLRUCache[int, string](3)
+
+		cache.Put(123, "Alice")
+		cache.Put(456, "Bob")
 
 		expected := 2
 		got := cache.Size()
@@ -92,13 +80,10 @@ func TestLRU(t *testing.T) {
 	})
 
 	t.Run("Remove everything", func(t *testing.T) {
-		cache := LRUCache[int, string]{
-			capacity: 2,
-			items: map[int]*Entry[int, string]{
-				123: {key: 123, value: "Alice"},
-				456: {key: 456, value: "Bob"},
-			},
-		}
+		cache := NewLRUCache[int, string](3)
+
+		cache.Put(123, "Alice")
+		cache.Put(456, "Bob")
 
 		cache.Clear()
 
@@ -107,6 +92,24 @@ func TestLRU(t *testing.T) {
 
 		if got != expected {
 			t.Errorf("expected %d but got %d", expected, got)
+		}
+	})
+
+	t.Run("Evicts least recently used item when capacity exceeded", func(t *testing.T) {
+		cache := NewLRUCache[int, string](2)
+
+		cache.Put(1, "A")
+		cache.Put(2, "B")
+
+		// accessing 1 makes it MRU
+		cache.Get(1)
+
+		// this should evict key 2
+		cache.Put(3, "C")
+
+		_, ok := cache.Get(2)
+		if ok {
+			t.Fatalf("expected key 2 to be evicted")
 		}
 	})
 }
