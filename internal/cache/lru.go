@@ -25,6 +25,9 @@ func NewLRUCache[K comparable, V any](capacity uint64) *LRUCache[K, V] {
 }
 
 func (cache *LRUCache[K, V]) Get(key K) (value V, exists bool) {
+	cache.mu.Lock()
+	defer cache.mu.Unlock()
+
 	entry, exists := cache.items[key]
 	if !exists {
 		return value, false
