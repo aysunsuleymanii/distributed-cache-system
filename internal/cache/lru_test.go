@@ -101,10 +101,8 @@ func TestLRU(t *testing.T) {
 		cache.Put(1, "A")
 		cache.Put(2, "B")
 
-		// accessing 1 makes it MRU
 		cache.Get(1)
 
-		// this should evict key 2
 		cache.Put(3, "C")
 
 		_, ok := cache.Get(2)

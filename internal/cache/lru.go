@@ -1,5 +1,7 @@
 package cache
 
+import "sync"
+
 type Entry[K comparable, V any] struct {
 	key   K
 	value V
@@ -12,6 +14,7 @@ type LRUCache[K comparable, V any] struct {
 	items    map[K]*Entry[K, V]
 	head     *Entry[K, V]
 	tail     *Entry[K, V]
+	mu       sync.RWMutex
 }
 
 func NewLRUCache[K comparable, V any](capacity uint64) *LRUCache[K, V] {
@@ -31,15 +34,15 @@ func (cache *LRUCache[K, V]) Get(key K) (value V, exists bool) {
 	return entry.value, true
 }
 func (cache *LRUCache[K, V]) Put(key K, value V) {
+	cache.mu.Lock()
+	defer cache.mu.Unlock()
 
-	// key already exists
 	if entry, exists := cache.items[key]; exists {
 		entry.value = value
 		cache.moveToHead(entry)
 		return
 	}
 
-	// create new entry
 	entry := &Entry[K, V]{
 		key:   key,
 		value: value,
@@ -48,13 +51,15 @@ func (cache *LRUCache[K, V]) Put(key K, value V) {
 	cache.items[key] = entry
 	cache.addToHead(entry)
 
-	// check capacity
 	if uint64(len(cache.items)) > cache.capacity {
 		cache.removeTail()
 	}
 }
 
 func (cache *LRUCache[K, V]) Remove(key K) (value V, successful bool) {
+	cache.mu.Lock()
+	defer cache.mu.Unlock()
+
 	entry, ok := cache.items[key]
 	if !ok {
 		return value, false
@@ -67,10 +72,16 @@ func (cache *LRUCache[K, V]) Remove(key K) (value V, successful bool) {
 }
 
 func (cache *LRUCache[K, V]) Size() int {
+	cache.mu.Lock()
+	defer cache.mu.Unlock()
+
 	return len(cache.items)
 }
 
 func (cache *LRUCache[K, V]) Clear() {
+	cache.mu.Lock()
+	defer cache.mu.Unlock()
+
 	cache.head = nil
 	cache.tail = nil
 	cache.items = make(map[K]*Entry[K, V])
